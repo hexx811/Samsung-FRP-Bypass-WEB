@@ -24,6 +24,7 @@ Other than that, everything happens in the browser and locally on your computer,
 - If you have done everything correctly, after clicking the "Reboot" button your device should restart and you should be either on the lock screen or in the system
 - On some devices you will still need to continue with the setup
 
+An automated version is now available [here](https://serial.rf.gd/autofrp/)
 
 # Known Issues
 
