@@ -27,7 +27,7 @@ Other than that, everything happens in the browser and locally on your computer,
 
 # Known Issues
 
-## Getting "Connection to the port has been lost" when sending DEBUGLVC command
+## Getting "The device has been lost" when sending DEBUGLVC command
 
 ### Cause:
 The command "AT+DEBUGLVC" changes the USB configuration of the device, causing it to disconnect from the computer.
